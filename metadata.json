@@ -1,0 +1,6 @@
+{
+  "name": "Business Manager Pro",
+  "description": "বাংলায় সম্পূর্ণ ব্যবসা ব্যবস্থাপনা অ্যাপ — ১১টি পৃথক অ্যাকাউন্ট, গ্রাহক লেনদেন, মোবাইল রিচার্জ, মূলধন, পার্টনার কমিশন, ঋণ, বিল ও লাভ-ক্ষতি হিসাব।",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

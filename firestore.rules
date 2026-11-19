@@ -1,0 +1,440 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HARDENED HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.uid == 'yRuPuAgCe2V2Y8avgK9U8n4sTgj1';
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidInviteId(id) {
+      return id is string && id.size() >= 3 && id.size() <= 150 && id.matches('^[a-zA-Z0-9_.+\\-@]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isActiveEmployee() {
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/employees/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.active == true &&
+             get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role == 'EMPLOYEE';
+    }
+
+    function isValidAccountId(accId) {
+      return accId in [
+        'cash',
+        'bkash_1', 'bkash_2', 'bkash_3', 'bkash_4', 'bkash_5',
+        'nagad', 'rocket', 'upay', 'ucb_bank', 'easy_recharge'
+      ];
+    }
+
+    function isValidPartnerId(pId) {
+      return pId in ['samad_bhai', 'jahir_mama', 'ariful_islam'];
+    }
+
+    function isOptionalString(data, key, maxLen) {
+      return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    // --- ENTITY VALIDATION HELPERS ---
+    function isValidEmployee(data) {
+      return data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             data.email is string && data.email.size() >= 3 && data.email.size() <= 150 &&
+             isOptionalString(data, 'phone', 30) &&
+             data.role in ['OWNER', 'EMPLOYEE'] &&
+             (data.role != 'OWNER' || data.uid == 'yRuPuAgCe2V2Y8avgK9U8n4sTgj1') &&
+             data.active is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidInvite(data) {
+      return data.email is string && data.email.size() >= 3 && data.email.size() <= 150 &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             isOptionalString(data, 'phone', 30) &&
+             data.role == 'EMPLOYEE' &&
+             data.active is bool &&
+             data.createdBy == 'yRuPuAgCe2V2Y8avgK9U8n4sTgj1' &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidAccount(data, accountId) {
+      return data.accountId == accountId &&
+             isValidAccountId(accountId) &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 60 &&
+             data.group in ['CASH', 'BKASH', 'MFS', 'BANK', 'RECHARGE'] &&
+             data.sortOrder is int && data.sortOrder >= 1 && data.sortOrder <= 11 &&
+             data.balancePaisa is int &&
+             data.capitalPaisa is int &&
+             data.allowNegativeBalance is bool &&
+             data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 50 &&
+             data.memberUids[0] is string &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidPartner(data, partnerId) {
+      return data.partnerId == partnerId &&
+             isValidPartnerId(partnerId) &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+             data.ratePerThousandPaisa is int && data.ratePerThousandPaisa >= 0 &&
+             data.bkashOnlyCommission is bool &&
+             data.sentTotalPaisa is int && data.sentTotalPaisa >= 0 &&
+             data.receivedTotalPaisa is int && data.receivedTotalPaisa >= 0 &&
+             data.currentBalancePaisa is int &&
+             data.payableCommissionPaisa is int && data.payableCommissionPaisa >= 0 &&
+             data.paidCommissionPaisa is int && data.paidCommissionPaisa >= 0 &&
+             data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 50 &&
+             data.memberUids[0] is string &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidTxType(txType) {
+      return txType in [
+        'CUSTOMER_TX', 'INTERNAL_TRANSFER', 'MOBILE_RECHARGE',
+        'CAPITAL_ADD', 'CAPITAL_WITHDRAW',
+        'PARTNER_SEND', 'PARTNER_RECEIVE', 'PARTNER_COMMISSION_PAY',
+        'LOAN_BORROW', 'LOAN_LEND', 'LOAN_REPAY',
+        'BILL_PAYMENT', 'SHOP_EXPENSE', 'BALANCE_ADJUSTMENT', 'REVERSAL'
+      ];
+    }
+
+    function isEmployeeAllowedTxType(txType) {
+      return txType in [
+        'CUSTOMER_TX', 'INTERNAL_TRANSFER', 'MOBILE_RECHARGE',
+        'PARTNER_SEND', 'PARTNER_RECEIVE',
+        'LOAN_BORROW', 'LOAN_LEND', 'LOAN_REPAY',
+        'BILL_PAYMENT', 'SHOP_EXPENSE'
+      ];
+    }
+
+    function isValidTransaction(data) {
+      return isValidTxType(data.txType) &&
+             data.status in ['PENDING', 'APPROVED', 'REJECTED'] &&
+             isOptionalString(data, 'customerName', 120) &&
+             isOptionalString(data, 'customerPhone', 30) &&
+             isOptionalString(data, 'operator', 30) &&
+             isOptionalString(data, 'billType', 30) &&
+             isOptionalString(data, 'expenseCategory', 40) &&
+             (!('partnerId' in data) || isValidPartnerId(data.partnerId)) &&
+             isOptionalString(data, 'loanId', 128) &&
+             isOptionalString(data, 'loanType', 30) &&
+             (!('receivedAccountId' in data) || isValidAccountId(data.receivedAccountId)) &&
+             data.receivedAmountPaisa is int && data.receivedAmountPaisa >= 0 &&
+             (!('paidAccountId' in data) || isValidAccountId(data.paidAccountId)) &&
+             data.paidAmountPaisa is int && data.paidAmountPaisa >= 0 &&
+             data.manualCommissionPaisa is int && data.manualCommissionPaisa >= 0 &&
+             data.partnerCommissionPaisa is int && data.partnerCommissionPaisa >= 0 &&
+             data.explicitFeePaisa is int && data.explicitFeePaisa >= 0 &&
+             data.interestPaisa is int && data.interestPaisa >= 0 &&
+             data.adjustmentSign is int && data.adjustmentSign in [-1, 0, 1] &&
+             isOptionalString(data, 'referenceTxId', 80) &&
+             isOptionalString(data, 'notes', 500) &&
+             isOptionalString(data, 'calculationExplanation', 300) &&
+             data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128 &&
+             data.createdByName is string && data.createdByName.size() >= 1 && data.createdByName.size() <= 100 &&
+             isOptionalString(data, 'approvedBy', 128) &&
+             data.occurredAtMillis is int && data.occurredAtMillis >= 0 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('approvedAt' in data) || (data.approvedAt is timestamp && data.approvedAt <= request.time)) &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time &&
+             isOptionalString(data, 'rejectionReason', 300) &&
+             isOptionalString(data, 'reversalReason', 300) &&
+             isOptionalString(data, 'reversedByTxId', 128) &&
+             isOptionalString(data, 'replacesTxId', 128) &&
+             isOptionalString(data, 'accountChangesSummary', 500);
+    }
+
+    function isValidLedgerEntry(data) {
+      return isValidId(data.txId) &&
+             isValidTxType(data.txType) &&
+             isValidAccountId(data.accountId) &&
+             data.accountName is string && data.accountName.size() >= 1 && data.accountName.size() <= 60 &&
+             data.deltaPaisa is int &&
+             data.previousBalancePaisa is int &&
+             data.newBalancePaisa is int &&
+             data.capitalDeltaPaisa is int &&
+             data.commissionIncomePaisa is int &&
+             data.partnerCommissionExpensePaisa is int &&
+             data.shopExpensePaisa is int &&
+             data.interestIncomePaisa is int &&
+             data.interestExpensePaisa is int &&
+             data.actorUid is string && data.actorUid.size() >= 1 && data.actorUid.size() <= 128 &&
+             data.approvedBy == 'yRuPuAgCe2V2Y8avgK9U8n4sTgj1' &&
+             data.note is string && data.note.size() <= 400 &&
+             data.occurredAtMillis is int && data.occurredAtMillis >= 0 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidLoan(data) {
+      return data.loanType in ['BORROWED', 'LENT'] &&
+             data.personName is string && data.personName.size() >= 1 && data.personName.size() <= 120 &&
+             isOptionalString(data, 'personPhone', 30) &&
+             isValidAccountId(data.accountId) &&
+             data.principalPaisa is int && data.principalPaisa > 0 &&
+             data.interestPaisa is int && data.interestPaisa >= 0 &&
+             data.remainingPrincipalPaisa is int && data.remainingPrincipalPaisa >= 0 &&
+             data.remainingInterestPaisa is int && data.remainingInterestPaisa >= 0 &&
+             data.loanDateMillis is int && data.loanDateMillis >= 0 &&
+             data.dueDateMillis is int && data.dueDateMillis >= 0 &&
+             data.status in ['OPEN', 'PARTIAL', 'PAID'] &&
+             isOptionalString(data, 'notes', 500) &&
+             data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 50 &&
+             data.memberUids[0] is string &&
+             data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidAuditLog(data) {
+      return data.action is string && data.action.size() >= 1 && data.action.size() <= 80 &&
+             data.actorUid is string && data.actorUid.size() >= 1 && data.actorUid.size() <= 128 &&
+             data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 100 &&
+             data.targetType is string && data.targetType.size() >= 1 && data.targetType.size() <= 50 &&
+             data.targetId is string && data.targetId.size() >= 1 && data.targetId.size() <= 128 &&
+             data.details is string && data.details.size() <= 600 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidSettings(data) {
+      return data.businessName is string && data.businessName.size() >= 1 && data.businessName.size() <= 100 &&
+             data.superAdminUid == 'yRuPuAgCe2V2Y8avgK9U8n4sTgj1' &&
+             data.initialized is bool &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    // --- COLLECTION RULES ---
+
+    match /employees/{uid} {
+      allow get: if isValidId(uid) && (isSuperAdmin() || (isSignedIn() && request.auth.uid == uid));
+      allow list: if isSuperAdmin();
+      allow create: if isValidId(uid) &&
+                       isValidEmployee(incoming()) &&
+                       incoming().keys().hasAll(['uid', 'name', 'email', 'role', 'active', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['uid', 'name', 'email', 'phone', 'role', 'active', 'createdAt', 'updatedAt']) &&
+                       (
+                         isSuperAdmin() ||
+                         (
+                           isSignedIn() &&
+                           request.auth.uid == uid &&
+                           incoming().uid == request.auth.uid &&
+                           incoming().role == 'EMPLOYEE' &&
+                           incoming().active == true &&
+                           request.auth.token.email_verified == true &&
+                           incoming().email == request.auth.token.email.lower() &&
+                           exists(/databases/$(database)/documents/employee_invites/$(request.auth.token.email.lower())) &&
+                           get(/databases/$(database)/documents/employee_invites/$(request.auth.token.email.lower())).data.active == true
+                         )
+                       );
+      allow update: if isValidId(uid) &&
+                       isSuperAdmin() &&
+                       isValidEmployee(incoming()) &&
+                       incoming().uid == existing().uid &&
+                       incoming().createdAt == existing().createdAt &&
+                       (uid != 'yRuPuAgCe2V2Y8avgK9U8n4sTgj1' || incoming().role == 'OWNER') &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'phone', 'role', 'active', 'updatedAt']);
+      allow delete: if isValidId(uid) && isSuperAdmin() && uid != 'yRuPuAgCe2V2Y8avgK9U8n4sTgj1';
+    }
+
+    match /employee_invites/{inviteId} {
+      allow get: if isValidInviteId(inviteId) && (
+        isSuperAdmin() ||
+        (isSignedIn() && request.auth.token.email_verified == true && inviteId == request.auth.token.email.lower())
+      );
+      allow list: if isSuperAdmin();
+      allow create: if isValidInviteId(inviteId) &&
+                       isSuperAdmin() &&
+                       isValidInvite(incoming()) &&
+                       incoming().email == inviteId &&
+                       incoming().keys().hasAll(['email', 'name', 'role', 'active', 'createdBy', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['email', 'name', 'phone', 'role', 'active', 'createdBy', 'createdAt', 'updatedAt']);
+      allow update: if isValidInviteId(inviteId) &&
+                       isSuperAdmin() &&
+                       isValidInvite(incoming()) &&
+                       incoming().email == existing().email &&
+                       incoming().createdBy == existing().createdBy &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'active', 'updatedAt']);
+      allow delete: if isValidInviteId(inviteId) && isSuperAdmin();
+    }
+
+    match /accounts/{accountId} {
+      allow get: if isValidAccountId(accountId) && (isSuperAdmin() || isActiveEmployee());
+      allow list: if isSuperAdmin() || isActiveEmployee();
+      allow create: if isValidAccountId(accountId) &&
+                       isSuperAdmin() &&
+                       isValidAccount(incoming(), accountId) &&
+                       incoming().keys().hasAll(['accountId', 'name', 'group', 'sortOrder', 'balancePaisa', 'capitalPaisa', 'allowNegativeBalance', 'memberUids', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['accountId', 'name', 'group', 'sortOrder', 'balancePaisa', 'capitalPaisa', 'allowNegativeBalance', 'memberUids', 'updatedAt']);
+      allow update: if isValidAccountId(accountId) &&
+                       isSuperAdmin() &&
+                       isValidAccount(incoming(), accountId) &&
+                       incoming().accountId == existing().accountId &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['name', 'group', 'sortOrder', 'balancePaisa', 'capitalPaisa', 'allowNegativeBalance', 'memberUids', 'updatedAt']);
+      allow delete: if isValidAccountId(accountId) && isSuperAdmin();
+    }
+
+    match /partners/{partnerId} {
+      allow get: if isValidPartnerId(partnerId) && (isSuperAdmin() || isActiveEmployee());
+      allow list: if isSuperAdmin() || isActiveEmployee();
+      allow create: if isValidPartnerId(partnerId) &&
+                       isSuperAdmin() &&
+                       isValidPartner(incoming(), partnerId) &&
+                       incoming().keys().hasAll(['partnerId', 'name', 'ratePerThousandPaisa', 'bkashOnlyCommission', 'sentTotalPaisa', 'receivedTotalPaisa', 'currentBalancePaisa', 'payableCommissionPaisa', 'paidCommissionPaisa', 'memberUids', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['partnerId', 'name', 'ratePerThousandPaisa', 'bkashOnlyCommission', 'sentTotalPaisa', 'receivedTotalPaisa', 'currentBalancePaisa', 'payableCommissionPaisa', 'paidCommissionPaisa', 'memberUids', 'updatedAt']);
+      allow update: if isValidPartnerId(partnerId) &&
+                       isSuperAdmin() &&
+                       isValidPartner(incoming(), partnerId) &&
+                       incoming().partnerId == existing().partnerId &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['name', 'ratePerThousandPaisa', 'bkashOnlyCommission', 'sentTotalPaisa', 'receivedTotalPaisa', 'currentBalancePaisa', 'payableCommissionPaisa', 'paidCommissionPaisa', 'memberUids', 'updatedAt']);
+      allow delete: if isValidPartnerId(partnerId) && isSuperAdmin();
+    }
+
+    match /transactions/{txId} {
+      allow get: if isValidId(txId) && (isSuperAdmin() || (isActiveEmployee() && existing().createdBy == request.auth.uid));
+      allow list: if isSuperAdmin() || (isActiveEmployee() && resource.data.createdBy == request.auth.uid);
+      allow create: if isValidId(txId) &&
+                       isValidTransaction(incoming()) &&
+                       incoming().keys().hasAll([
+                         'txType', 'status', 'receivedAmountPaisa', 'paidAmountPaisa',
+                         'manualCommissionPaisa', 'partnerCommissionPaisa', 'explicitFeePaisa',
+                         'interestPaisa', 'adjustmentSign', 'createdBy', 'createdByName',
+                         'occurredAtMillis', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'txType', 'status', 'customerName', 'customerPhone', 'operator', 'billType',
+                         'expenseCategory', 'partnerId', 'loanId', 'loanType', 'receivedAccountId',
+                         'receivedAmountPaisa', 'paidAccountId', 'paidAmountPaisa', 'manualCommissionPaisa',
+                         'partnerCommissionPaisa', 'explicitFeePaisa', 'interestPaisa', 'adjustmentSign',
+                         'referenceTxId', 'notes', 'calculationExplanation', 'createdBy', 'createdByName',
+                         'approvedBy', 'occurredAtMillis', 'createdAt', 'approvedAt', 'updatedAt',
+                         'rejectionReason', 'reversalReason', 'reversedByTxId', 'replacesTxId', 'accountChangesSummary'
+                       ]) &&
+                       (
+                         (isSuperAdmin() && incoming().createdBy == request.auth.uid) ||
+                         (
+                           isActiveEmployee() &&
+                           incoming().createdBy == request.auth.uid &&
+                           incoming().status == 'PENDING' &&
+                           isEmployeeAllowedTxType(incoming().txType) &&
+                           !('approvedBy' in incoming()) &&
+                           !('approvedAt' in incoming()) &&
+                           !('rejectionReason' in incoming()) &&
+                           !('reversalReason' in incoming()) &&
+                           !('reversedByTxId' in incoming()) &&
+                           !('replacesTxId' in incoming())
+                         )
+                       );
+      allow update: if isValidId(txId) &&
+                       isSuperAdmin() &&
+                       isValidTransaction(incoming()) &&
+                       incoming().createdBy == existing().createdBy &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'status', 'approvedBy', 'approvedAt', 'updatedAt',
+                         'rejectionReason', 'reversalReason', 'reversedByTxId',
+                         'accountChangesSummary', 'loanId', 'partnerCommissionPaisa', 'calculationExplanation'
+                       ]);
+      allow delete: if isValidId(txId) && isSuperAdmin();
+    }
+
+    match /ledger/{entryId} {
+      allow get: if isValidId(entryId) && isSuperAdmin();
+      allow list: if isSuperAdmin();
+      allow create: if isValidId(entryId) &&
+                       isSuperAdmin() &&
+                       isValidLedgerEntry(incoming()) &&
+                       incoming().keys().hasAll([
+                         'txId', 'txType', 'accountId', 'accountName', 'deltaPaisa',
+                         'previousBalancePaisa', 'newBalancePaisa', 'capitalDeltaPaisa',
+                         'commissionIncomePaisa', 'partnerCommissionExpensePaisa', 'shopExpensePaisa',
+                         'interestIncomePaisa', 'interestExpensePaisa', 'actorUid', 'approvedBy',
+                         'note', 'occurredAtMillis', 'createdAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'txId', 'txType', 'accountId', 'accountName', 'deltaPaisa',
+                         'previousBalancePaisa', 'newBalancePaisa', 'capitalDeltaPaisa',
+                         'commissionIncomePaisa', 'partnerCommissionExpensePaisa', 'shopExpensePaisa',
+                         'interestIncomePaisa', 'interestExpensePaisa', 'actorUid', 'approvedBy',
+                         'note', 'occurredAtMillis', 'createdAt'
+                       ]);
+      allow update: if false; // Append-only financial ledger
+      allow delete: if isValidId(entryId) && isSuperAdmin();
+    }
+
+    match /loans/{loanId} {
+      allow get: if isValidId(loanId) && (isSuperAdmin() || isActiveEmployee());
+      allow list: if isSuperAdmin() || isActiveEmployee();
+      allow create: if isValidId(loanId) &&
+                       isSuperAdmin() &&
+                       isValidLoan(incoming()) &&
+                       incoming().keys().hasAll([
+                         'loanType', 'personName', 'accountId', 'principalPaisa', 'interestPaisa',
+                         'remainingPrincipalPaisa', 'remainingInterestPaisa', 'loanDateMillis',
+                         'dueDateMillis', 'status', 'memberUids', 'createdBy', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'loanType', 'personName', 'personPhone', 'accountId', 'principalPaisa', 'interestPaisa',
+                         'remainingPrincipalPaisa', 'remainingInterestPaisa', 'loanDateMillis',
+                         'dueDateMillis', 'status', 'notes', 'memberUids', 'createdBy', 'createdAt', 'updatedAt'
+                       ]);
+      allow update: if isValidId(loanId) &&
+                       isSuperAdmin() &&
+                       isValidLoan(incoming()) &&
+                       incoming().createdBy == existing().createdBy &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'remainingPrincipalPaisa', 'remainingInterestPaisa', 'status',
+                         'dueDateMillis', 'notes', 'memberUids', 'updatedAt'
+                       ]);
+      allow delete: if isValidId(loanId) && isSuperAdmin();
+    }
+
+    match /audit_logs/{logId} {
+      allow get: if isValidId(logId) && isSuperAdmin();
+      allow list: if isSuperAdmin();
+      allow create: if isValidId(logId) &&
+                       isSuperAdmin() &&
+                       isValidAuditLog(incoming()) &&
+                       incoming().keys().hasAll(['action', 'actorUid', 'actorName', 'targetType', 'targetId', 'details', 'createdAt']) &&
+                       incoming().keys().hasOnly(['action', 'actorUid', 'actorName', 'targetType', 'targetId', 'details', 'createdAt']);
+      allow update: if false; // Immutable audit log
+      allow delete: if isValidId(logId) && isSuperAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow get: if isValidId(settingId) && (isSuperAdmin() || isActiveEmployee());
+      allow list: if isSuperAdmin();
+      allow create: if isValidId(settingId) &&
+                       isSuperAdmin() &&
+                       isValidSettings(incoming()) &&
+                       incoming().keys().hasAll(['businessName', 'superAdminUid', 'initialized', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['businessName', 'superAdminUid', 'initialized', 'updatedAt']);
+      allow update: if isValidId(settingId) &&
+                       isSuperAdmin() &&
+                       isValidSettings(incoming()) &&
+                       incoming().superAdminUid == existing().superAdminUid &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['businessName', 'initialized', 'updatedAt']);
+      allow delete: if isValidId(settingId) && isSuperAdmin();
+    }
+  }
+}

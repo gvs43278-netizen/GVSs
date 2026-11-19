@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "989761405552",
+    "firebase_url": "https://business-manager-pro-a474d-default-rtdb.firebaseio.com",
+    "project_id": "business-manager-pro-a474d",
+    "storage_bucket": "business-manager-pro-a474d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:989761405552:android:6b92149b10086731282ab5",
+        "android_client_info": {
+          "package_name": "com.ams.business"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "989761405552-q194910mad1672ilednif65uvh4dd13d.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA85w_qRRpfSMOMfHvV5zt43oCBdmhosNY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "989761405552-q194910mad1672ilednif65uvh4dd13d.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

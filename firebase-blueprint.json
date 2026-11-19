@@ -1,0 +1,309 @@
+{
+  "entities": {
+    "Employee": {
+      "title": "Employee",
+      "description": "Authenticated business member (Owner or Employee)",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "role": { "type": "string", "enum": ["OWNER", "EMPLOYEE"] },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "email", "role", "active", "createdAt", "updatedAt"]
+    },
+    "EmployeeInvite": {
+      "title": "EmployeeInvite",
+      "description": "Owner-created email invitation allowing employee onboarding",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "role": { "type": "string", "enum": ["EMPLOYEE"] },
+        "active": { "type": "boolean" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "name", "role", "active", "createdBy", "createdAt", "updatedAt"]
+    },
+    "FinancialAccount": {
+      "title": "FinancialAccount",
+      "description": "One of the 11 separate financial accounts with balances stored in integer paisa",
+      "type": "object",
+      "properties": {
+        "accountId": { "type": "string" },
+        "name": { "type": "string" },
+        "group": { "type": "string", "enum": ["CASH", "BKASH", "MFS", "BANK", "RECHARGE"] },
+        "sortOrder": { "type": "integer" },
+        "balancePaisa": { "type": "integer" },
+        "capitalPaisa": { "type": "integer" },
+        "allowNegativeBalance": { "type": "boolean" },
+        "memberUids": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["accountId", "name", "group", "sortOrder", "balancePaisa", "capitalPaisa", "allowNegativeBalance", "memberUids", "updatedAt"]
+    },
+    "PartnerAccount": {
+      "title": "PartnerAccount",
+      "description": "Business partner account (Samad Bhai, Jahir Mama, Ariful Islam)",
+      "type": "object",
+      "properties": {
+        "partnerId": { "type": "string", "enum": ["samad_bhai", "jahir_mama", "ariful_islam"] },
+        "name": { "type": "string" },
+        "ratePerThousandPaisa": { "type": "integer" },
+        "bkashOnlyCommission": { "type": "boolean" },
+        "sentTotalPaisa": { "type": "integer" },
+        "receivedTotalPaisa": { "type": "integer" },
+        "currentBalancePaisa": { "type": "integer" },
+        "payableCommissionPaisa": { "type": "integer" },
+        "paidCommissionPaisa": { "type": "integer" },
+        "memberUids": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "partnerId",
+        "name",
+        "ratePerThousandPaisa",
+        "bkashOnlyCommission",
+        "sentTotalPaisa",
+        "receivedTotalPaisa",
+        "currentBalancePaisa",
+        "payableCommissionPaisa",
+        "paidCommissionPaisa",
+        "memberUids",
+        "updatedAt"
+      ]
+    },
+    "BusinessTransaction": {
+      "title": "BusinessTransaction",
+      "description": "Financial transaction workflow record with Pending/Approved/Rejected lifecycle",
+      "type": "object",
+      "properties": {
+        "txType": {
+          "type": "string",
+          "enum": [
+            "CUSTOMER_TX",
+            "INTERNAL_TRANSFER",
+            "MOBILE_RECHARGE",
+            "CAPITAL_ADD",
+            "CAPITAL_WITHDRAW",
+            "PARTNER_SEND",
+            "PARTNER_RECEIVE",
+            "PARTNER_COMMISSION_PAY",
+            "LOAN_BORROW",
+            "LOAN_LEND",
+            "LOAN_REPAY",
+            "BILL_PAYMENT",
+            "SHOP_EXPENSE",
+            "BALANCE_ADJUSTMENT",
+            "REVERSAL"
+          ]
+        },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED"] },
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "operator": { "type": "string" },
+        "billType": { "type": "string" },
+        "expenseCategory": { "type": "string" },
+        "partnerId": { "type": "string" },
+        "loanId": { "type": "string" },
+        "loanType": { "type": "string" },
+        "receivedAccountId": { "type": "string" },
+        "receivedAmountPaisa": { "type": "integer" },
+        "paidAccountId": { "type": "string" },
+        "paidAmountPaisa": { "type": "integer" },
+        "manualCommissionPaisa": { "type": "integer" },
+        "partnerCommissionPaisa": { "type": "integer" },
+        "explicitFeePaisa": { "type": "integer" },
+        "interestPaisa": { "type": "integer" },
+        "adjustmentSign": { "type": "integer" },
+        "referenceTxId": { "type": "string" },
+        "notes": { "type": "string" },
+        "calculationExplanation": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdByName": { "type": "string" },
+        "approvedBy": { "type": "string" },
+        "occurredAtMillis": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "approvedAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "rejectionReason": { "type": "string" },
+        "reversalReason": { "type": "string" },
+        "reversedByTxId": { "type": "string" },
+        "replacesTxId": { "type": "string" },
+        "accountChangesSummary": { "type": "string" }
+      },
+      "required": [
+        "txType",
+        "status",
+        "receivedAmountPaisa",
+        "paidAmountPaisa",
+        "manualCommissionPaisa",
+        "partnerCommissionPaisa",
+        "explicitFeePaisa",
+        "interestPaisa",
+        "adjustmentSign",
+        "createdBy",
+        "createdByName",
+        "occurredAtMillis",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "LedgerEntry": {
+      "title": "LedgerEntry",
+      "description": "Append-only financial ledger entry created upon approval or reversal",
+      "type": "object",
+      "properties": {
+        "txId": { "type": "string" },
+        "txType": { "type": "string" },
+        "accountId": { "type": "string" },
+        "accountName": { "type": "string" },
+        "deltaPaisa": { "type": "integer" },
+        "previousBalancePaisa": { "type": "integer" },
+        "newBalancePaisa": { "type": "integer" },
+        "capitalDeltaPaisa": { "type": "integer" },
+        "commissionIncomePaisa": { "type": "integer" },
+        "partnerCommissionExpensePaisa": { "type": "integer" },
+        "shopExpensePaisa": { "type": "integer" },
+        "interestIncomePaisa": { "type": "integer" },
+        "interestExpensePaisa": { "type": "integer" },
+        "actorUid": { "type": "string" },
+        "approvedBy": { "type": "string" },
+        "note": { "type": "string" },
+        "occurredAtMillis": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "txId",
+        "txType",
+        "accountId",
+        "accountName",
+        "deltaPaisa",
+        "previousBalancePaisa",
+        "newBalancePaisa",
+        "capitalDeltaPaisa",
+        "commissionIncomePaisa",
+        "partnerCommissionExpensePaisa",
+        "shopExpensePaisa",
+        "interestIncomePaisa",
+        "interestExpensePaisa",
+        "actorUid",
+        "approvedBy",
+        "note",
+        "occurredAtMillis",
+        "createdAt"
+      ]
+    },
+    "LoanRecord": {
+      "title": "LoanRecord",
+      "description": "Loan payable (borrowed) or receivable (lent) tracking principal and interest separately",
+      "type": "object",
+      "properties": {
+        "loanType": { "type": "string", "enum": ["BORROWED", "LENT"] },
+        "personName": { "type": "string" },
+        "personPhone": { "type": "string" },
+        "accountId": { "type": "string" },
+        "principalPaisa": { "type": "integer" },
+        "interestPaisa": { "type": "integer" },
+        "remainingPrincipalPaisa": { "type": "integer" },
+        "remainingInterestPaisa": { "type": "integer" },
+        "loanDateMillis": { "type": "integer" },
+        "dueDateMillis": { "type": "integer" },
+        "status": { "type": "string", "enum": ["OPEN", "PARTIAL", "PAID"] },
+        "notes": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "loanType",
+        "personName",
+        "accountId",
+        "principalPaisa",
+        "interestPaisa",
+        "remainingPrincipalPaisa",
+        "remainingInterestPaisa",
+        "loanDateMillis",
+        "dueDateMillis",
+        "status",
+        "memberUids",
+        "createdBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable administrative and financial audit log",
+      "type": "object",
+      "properties": {
+        "action": { "type": "string" },
+        "actorUid": { "type": "string" },
+        "actorName": { "type": "string" },
+        "targetType": { "type": "string" },
+        "targetId": { "type": "string" },
+        "details": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["action", "actorUid", "actorName", "targetType", "targetId", "details", "createdAt"]
+    },
+    "BusinessSettings": {
+      "title": "BusinessSettings",
+      "description": "Global business configuration",
+      "type": "object",
+      "properties": {
+        "businessName": { "type": "string" },
+        "superAdminUid": { "type": "string" },
+        "initialized": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["businessName", "superAdminUid", "initialized", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/employees/{uid}": {
+      "schema": { "$ref": "#/entities/Employee" },
+      "description": "Employee and Owner access records"
+    },
+    "/employee_invites/{inviteId}": {
+      "schema": { "$ref": "#/entities/EmployeeInvite" },
+      "description": "Email-keyed employee invitations managed by Super Admin"
+    },
+    "/accounts/{accountId}": {
+      "schema": { "$ref": "#/entities/FinancialAccount" },
+      "description": "11 separate financial accounts"
+    },
+    "/partners/{partnerId}": {
+      "schema": { "$ref": "#/entities/PartnerAccount" },
+      "description": "3 business partner accounts and commission settings"
+    },
+    "/transactions/{txId}": {
+      "schema": { "$ref": "#/entities/BusinessTransaction" },
+      "description": "All business transactions with approval workflow"
+    },
+    "/ledger/{entryId}": {
+      "schema": { "$ref": "#/entities/LedgerEntry" },
+      "description": "Append-only financial ledger entries"
+    },
+    "/loans/{loanId}": {
+      "schema": { "$ref": "#/entities/LoanRecord" },
+      "description": "Payable and receivable loan records"
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Immutable administrative audit logs"
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/BusinessSettings" },
+      "description": "Global business settings"
+    }
+  }
+}
